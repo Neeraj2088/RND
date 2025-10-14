@@ -1,0 +1,215 @@
+import pypdf
+import json
+import re
+from typing import List, Dict, Any
+
+def extract_headings_from_pdf(pdf_path: str) -> Dict[str, Any]:
+    """
+    Extract headings and subheadings from a PDF file recursively.
+    Returns a structured JSON with hierarchical organization.
+    
+    Args:
+        pdf_path: Path to the PDF file
+        
+    Returns:
+        Dictionary with hierarchical heading structure
+    """
+    
+    try:
+        with open(pdf_path, 'rb') as file:
+            pdf_reader = pypdf.PdfReader(file)
+            
+            # Try to get outline (bookmarks) from PDF
+            try:
+                outline = pdf_reader.outline
+                headings = build_heading_hierarchy(outline)
+                return {
+                    "status": "success",
+                    "total_pages": len(pdf_reader.pages),
+                    "headings": headings
+                }
+            except Exception as e:
+                print(f"Could not extract outline: {e}")
+                print("Attempting to extract text-based headings...")
+                
+                # Fallback: Extract text and identify headings by font size/formatting
+                headings = extract_text_based_headings(pdf_reader)
+                return {
+                    "status": "success",
+                    "total_pages": len(pdf_reader.pages),
+                    "headings": headings
+                }
+                
+    except FileNotFoundError:
+        return {
+            "status": "error",
+            "message": f"File not found: {pdf_path}"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+def build_heading_hierarchy(outline: List, level: int = 0) -> List[Dict[str, Any]]:
+    """
+    Recursively build heading hierarchy from PDF outline.
+    
+    Args:
+        outline: PDF outline/bookmarks list
+        level: Current nesting level
+        
+    Returns:
+        List of heading dictionaries with children
+    """
+    headings = []
+    
+    for item in outline:
+        if isinstance(item, dict):
+            # This is a heading
+            heading_dict = {
+                "title": item.get("/Title", "Untitled"),
+                "level": level,
+                "children": []
+            }
+            headings.append(heading_dict)
+            
+        elif isinstance(item, list):
+            # This is a nested list of subheadings
+            if headings:
+                # Add to last heading's children
+                headings[-1]["children"] = build_heading_hierarchy(item, level + 1)
+    
+    return headings
+
+
+def extract_text_based_headings(pdf_reader: pypdf.PdfReader) -> List[Dict[str, Any]]:
+    """
+    Extract headings from text content by analyzing formatting.
+    Identifies potential headings based on capitalization and placement.
+    
+    Args:
+        pdf_reader: PyPDF reader object
+        
+    Returns:
+        List of extracted headings
+    """
+    headings = []
+    current_hierarchy = {}
+    
+    for page_num, page in enumerate(pdf_reader.pages):
+        text = page.extract_text()
+        if not text:
+            continue
+            
+        lines = text.split('\n')
+        
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            
+            # Heuristics for identifying headings
+            heading_level = determine_heading_level(stripped)
+            
+            if heading_level > 0:
+                heading_dict = {
+                    "title": stripped,
+                    "level": heading_level,
+                    "page": page_num + 1,
+                    "children": []
+                }
+                
+                # Build hierarchy
+                if not headings:
+                    headings.append(heading_dict)
+                else:
+                    add_to_hierarchy(headings, heading_dict)
+    
+    return headings
+
+
+def determine_heading_level(text: str) -> int:
+    """
+    Determine if text is a heading and at what level.
+    
+    Args:
+        text: Line of text to analyze
+        
+    Returns:
+        Heading level (0 if not a heading, 1-6 for h1-h6 equivalents)
+    """
+    # Remove leading/trailing whitespace
+    stripped = text.strip()
+    
+    # Check if line is all caps (h1 candidate)
+    if stripped.isupper() and len(stripped) > 2 and stripped.isalpha():
+        return 1
+    
+    # Check if line starts with numbers (1., 1.1, etc.) - likely heading
+    if re.match(r'^\d+(\.\d+)*\s+', stripped):
+        level = len(re.match(r'^\d+(\.\d+)*', stripped).group().split('.'))
+        return min(level + 1, 6)
+    
+    # Check for title case with reasonable length (h2-h3 candidate)
+    if is_title_case(stripped) and 5 < len(stripped) < 100:
+        return 2
+    
+    return 0
+
+
+def is_title_case(text: str) -> bool:
+    """
+    Check if text is in title case format.
+    """
+    words = text.split()
+    if len(words) < 2:
+        return False
+    
+    title_words = sum(1 for w in words if w and w[0].isupper())
+    return title_words / len(words) > 0.6
+
+
+def add_to_hierarchy(headings: List[Dict], new_heading: Dict) -> None:
+    """
+    Add a heading to the appropriate position in hierarchy.
+    """
+    current = headings[-1]
+    
+    if new_heading["level"] > current["level"]:
+        current["children"].append(new_heading)
+    else:
+        # Find appropriate parent level
+        while headings and headings[-1]["level"] >= new_heading["level"]:
+            headings.pop()
+        
+        if headings:
+            headings[-1]["children"].append(new_heading)
+        else:
+            headings.append(new_heading)
+
+
+def save_to_json(data: Dict, output_path: str) -> None:
+    """
+    Save extracted headings to JSON file.
+    """
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    print(f"JSON saved to: {output_path}")
+
+
+# Example usage
+if __name__ == "__main__":
+    # Specify your PDF path
+    pdf_file = "sample.pdf"
+    output_file = "headings_output.json"
+    
+    print(f"Extracting headings from: {pdf_file}")
+    result = extract_headings_from_pdf(pdf_file)
+    
+    # Print to console
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    
+    # Save to file
+    save_to_json(result, output_file)
