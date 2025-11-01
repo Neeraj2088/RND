@@ -1,0 +1,439 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { Plus, Trash2, Settings, Save, Play } from 'lucide-react';
+
+const WorkflowBuilder = () => {
+  const [nodes, setNodes] = useState([]);
+  const [connections, setConnections] = useState([]);
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [connecting, setConnecting] = useState(null);
+  const canvasRef = useRef(null);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+
+  const nodeTypes = [
+    { id: 'start', label: 'Start', color: 'bg-green-500', icon: '▶' },
+    { id: 'condition', label: 'Condition', color: 'bg-yellow-500', icon: '◆' },
+    { id: 'approver', label: 'Approver', color: 'bg-blue-500', icon: '👤' },
+    { id: 'action', label: 'Action', color: 'bg-purple-500', icon: '⚡' },
+    { id: 'email', label: 'Send Email', color: 'bg-pink-500', icon: '✉' },
+    { id: 'end', label: 'End', color: 'bg-red-500', icon: '■' }
+  ];
+
+  const handleDragStart = (e, nodeType) => {
+    setDraggedItem(nodeType);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    if (!draggedItem) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const newNode = {
+      id: `node-${Date.now()}`,
+      type: draggedItem.id,
+      label: draggedItem.label,
+      color: draggedItem.color,
+      icon: draggedItem.icon,
+      x,
+      y,
+      config: {}
+    };
+
+    setNodes([...nodes, newNode]);
+    setDraggedItem(null);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleNodeClick = (node) => {
+    if (connecting) {
+      if (connecting.id !== node.id) {
+        setConnections([...connections, { from: connecting.id, to: node.id, label: '' }]);
+      }
+      setConnecting(null);
+    } else {
+      setSelectedNode(node);
+    }
+  };
+
+  const startConnection = (e, node) => {
+    e.stopPropagation();
+    setConnecting(node);
+  };
+
+  const deleteNode = (nodeId) => {
+    setNodes(nodes.filter(n => n.id !== nodeId));
+    setConnections(connections.filter(c => c.from !== nodeId && c.to !== nodeId));
+    if (selectedNode?.id === nodeId) setSelectedNode(null);
+  };
+
+  const updateNodeConfig = (field, value) => {
+    const updatedNodes = nodes.map(n => 
+      n.id === selectedNode.id 
+        ? { ...n, config: { ...n.config, [field]: value } }
+        : n
+    );
+    setNodes(updatedNodes);
+    setSelectedNode({ ...selectedNode, config: { ...selectedNode.config, [field]: value } });
+  };
+
+  const renderNodeConfig = () => {
+    if (!selectedNode) return null;
+
+    switch (selectedNode.type) {
+      case 'condition':
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Field</label>
+              <select 
+                className="w-full px-3 py-2 border rounded"
+                value={selectedNode.config.field || ''}
+                onChange={(e) => updateNodeConfig('field', e.target.value)}
+              >
+                <option value="">Select Field</option>
+                <option value="amount">Amount</option>
+                <option value="status">Status</option>
+                <option value="priority">Priority</option>
+                <option value="department">Department</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Operator</label>
+              <select 
+                className="w-full px-3 py-2 border rounded"
+                value={selectedNode.config.operator || ''}
+                onChange={(e) => updateNodeConfig('operator', e.target.value)}
+              >
+                <option value="">Select Operator</option>
+                <option value="equals">Equals</option>
+                <option value="greater">Greater Than</option>
+                <option value="less">Less Than</option>
+                <option value="contains">Contains</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Value</label>
+              <input 
+                type="text" 
+                className="w-full px-3 py-2 border rounded"
+                value={selectedNode.config.value || ''}
+                onChange={(e) => updateNodeConfig('value', e.target.value)}
+                placeholder="Enter value"
+              />
+            </div>
+          </div>
+        );
+
+      case 'approver':
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Approver Level</label>
+              <select 
+                className="w-full px-3 py-2 border rounded"
+                value={selectedNode.config.level || ''}
+                onChange={(e) => updateNodeConfig('level', e.target.value)}
+              >
+                <option value="">Select Level</option>
+                <option value="1">Level 1 - Manager</option>
+                <option value="2">Level 2 - Director</option>
+                <option value="3">Level 3 - VP</option>
+                <option value="4">Level 4 - C-Level</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Approver Email</label>
+              <input 
+                type="email" 
+                className="w-full px-3 py-2 border rounded"
+                value={selectedNode.config.email || ''}
+                onChange={(e) => updateNodeConfig('email', e.target.value)}
+                placeholder="approver@company.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Timeout (hours)</label>
+              <input 
+                type="number" 
+                className="w-full px-3 py-2 border rounded"
+                value={selectedNode.config.timeout || ''}
+                onChange={(e) => updateNodeConfig('timeout', e.target.value)}
+                placeholder="24"
+              />
+            </div>
+          </div>
+        );
+
+      case 'email':
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">To Email</label>
+              <input 
+                type="email" 
+                className="w-full px-3 py-2 border rounded"
+                value={selectedNode.config.to || ''}
+                onChange={(e) => updateNodeConfig('to', e.target.value)}
+                placeholder="recipient@company.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Subject</label>
+              <input 
+                type="text" 
+                className="w-full px-3 py-2 border rounded"
+                value={selectedNode.config.subject || ''}
+                onChange={(e) => updateNodeConfig('subject', e.target.value)}
+                placeholder="Email subject"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Template</label>
+              <select 
+                className="w-full px-3 py-2 border rounded"
+                value={selectedNode.config.template || ''}
+                onChange={(e) => updateNodeConfig('template', e.target.value)}
+              >
+                <option value="">Select Template</option>
+                <option value="approved">Approval Notification</option>
+                <option value="rejected">Rejection Notification</option>
+                <option value="pending">Pending Approval</option>
+              </select>
+            </div>
+          </div>
+        );
+
+      case 'action':
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Action Type</label>
+              <select 
+                className="w-full px-3 py-2 border rounded"
+                value={selectedNode.config.actionType || ''}
+                onChange={(e) => updateNodeConfig('actionType', e.target.value)}
+              >
+                <option value="">Select Action</option>
+                <option value="update">Update Status</option>
+                <option value="notify">Send Notification</option>
+                <option value="log">Log Activity</option>
+                <option value="webhook">Trigger Webhook</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Parameters</label>
+              <textarea 
+                className="w-full px-3 py-2 border rounded"
+                value={selectedNode.config.params || ''}
+                onChange={(e) => updateNodeConfig('params', e.target.value)}
+                placeholder="Enter parameters"
+                rows="3"
+              />
+            </div>
+          </div>
+        );
+
+      default:
+        return (
+          <div className="text-sm text-gray-600">
+            No configuration needed for this node type.
+          </div>
+        );
+    }
+  };
+
+  const drawConnections = () => {
+    return connections.map((conn, idx) => {
+      const fromNode = nodes.find(n => n.id === conn.from);
+      const toNode = nodes.find(n => n.id === conn.to);
+      
+      if (!fromNode || !toNode) return null;
+
+      const x1 = fromNode.x + 60;
+      const y1 = fromNode.y + 30;
+      const x2 = toNode.x + 60;
+      const y2 = toNode.y + 30;
+
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
+
+      return (
+        <g key={idx}>
+          <path
+            d={`M ${x1} ${y1} Q ${midX} ${y1} ${midX} ${midY} T ${x2} ${y2}`}
+            stroke="#6366f1"
+            strokeWidth="2"
+            fill="none"
+            markerEnd="url(#arrowhead)"
+          />
+        </g>
+      );
+    });
+  };
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar - Node Palette */}
+      <div className="w-64 bg-white border-r border-gray-200 p-4 overflow-y-auto">
+        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <Plus size={20} />
+          Workflow Nodes
+        </h2>
+        <div className="space-y-2">
+          {nodeTypes.map((type) => (
+            <div
+              key={type.id}
+              draggable
+              onDragStart={(e) => handleDragStart(e, type)}
+              className={`${type.color} text-white p-3 rounded cursor-move hover:opacity-80 transition flex items-center gap-2 shadow`}
+            >
+              <span className="text-xl">{type.icon}</span>
+              <span className="font-medium">{type.label}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 pt-6 border-t">
+          <h3 className="font-semibold mb-2">Instructions:</h3>
+          <ul className="text-xs text-gray-600 space-y-1">
+            <li>• Drag nodes to canvas</li>
+            <li>• Click node to configure</li>
+            <li>• Click "Connect" to link nodes</li>
+            <li>• Build approval flow</li>
+          </ul>
+        </div>
+      </div>
+
+      {/* Canvas */}
+      <div className="flex-1 flex flex-col">
+        <div className="bg-white border-b border-gray-200 p-4 flex justify-between items-center">
+          <h1 className="text-xl font-bold">Auto Approval Workflow Designer</h1>
+          <div className="flex gap-2">
+            <button className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2">
+              <Save size={16} />
+              Save
+            </button>
+            <button className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2">
+              <Play size={16} />
+              Test
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 relative overflow-hidden">
+          <div
+            ref={canvasRef}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            className="w-full h-full bg-gray-50"
+            style={{
+              backgroundImage: 'radial-gradient(circle, #d1d5db 1px, transparent 1px)',
+              backgroundSize: '20px 20px'
+            }}
+          >
+            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+              <defs>
+                <marker
+                  id="arrowhead"
+                  markerWidth="10"
+                  markerHeight="10"
+                  refX="9"
+                  refY="3"
+                  orient="auto"
+                >
+                  <polygon points="0 0, 10 3, 0 6" fill="#6366f1" />
+                </marker>
+              </defs>
+              {drawConnections()}
+            </svg>
+
+            {nodes.map((node) => (
+              <div
+                key={node.id}
+                className={`absolute ${node.color} text-white p-3 rounded-lg cursor-pointer shadow-lg hover:shadow-xl transition ${
+                  selectedNode?.id === node.id ? 'ring-4 ring-blue-400' : ''
+                }`}
+                style={{
+                  left: node.x,
+                  top: node.y,
+                  width: '120px'
+                }}
+                onClick={() => handleNodeClick(node)}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xl">{node.icon}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteNode(node.id);
+                    }}
+                    className="hover:bg-white hover:bg-opacity-20 p-1 rounded"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                <div className="text-xs font-semibold mb-2">{node.label}</div>
+                <button
+                  onClick={(e) => startConnection(e, node)}
+                  className="w-full text-xs bg-white bg-opacity-20 hover:bg-opacity-30 py-1 rounded"
+                >
+                  {connecting?.id === node.id ? 'Click target' : 'Connect'}
+                </button>
+              </div>
+            ))}
+
+            {connecting && (
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-yellow-500 text-white px-4 py-2 rounded shadow-lg">
+                Click on target node to connect
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Properties Panel */}
+      <div className="w-80 bg-white border-l border-gray-200 p-4 overflow-y-auto">
+        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <Settings size={20} />
+          Node Properties
+        </h2>
+        
+        {selectedNode ? (
+          <div>
+            <div className="mb-4 p-3 bg-gray-100 rounded">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">{selectedNode.icon}</span>
+                <div>
+                  <div className="font-semibold">{selectedNode.label}</div>
+                  <div className="text-xs text-gray-600">{selectedNode.id}</div>
+                </div>
+              </div>
+            </div>
+
+            {renderNodeConfig()}
+
+            <button
+              onClick={() => setSelectedNode(null)}
+              className="w-full mt-4 px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded"
+            >
+              Close
+            </button>
+          </div>
+        ) : (
+          <div className="text-gray-500 text-center mt-8">
+            <Settings size={48} className="mx-auto mb-2 opacity-20" />
+            <p>Select a node to configure its properties</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default WorkflowBuilder;
