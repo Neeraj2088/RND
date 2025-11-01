@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Angular Workflow Builder Preview</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+
+        .workflow-container {
+            display: flex;
+            height: 100vh;
+            background-color: #f9fafb;
+        }
+
+        .sidebar {
+            width: 256px;
+            background: white;
+            border-right: 1px solid #e5e7eb;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+
+        .sidebar-title {
+            font-size: 1.125rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .node-palette {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .palette-node {
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            cursor: move;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: opacity 0.2s;
+            user-select: none;
+        }
+
+        .palette-node:hover {
+            opacity: 0.8;
+        }
+
+        .node-green { background-color: #10b981; }
+        .node-yellow { background-color: #eab308; }
+        .node-blue { background-color: #3b82f6; }
+        .node-purple { background-color: #a855f7; }
+        .node-pink { background-color: #ec4899; }
+        .node-red { background-color: #ef4444; }
+
+        .node-icon {
+            font-size: 1.25rem;
+        }
+
+        .instructions {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .instructions h3 {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .instructions ul {
+            list-style: none;
+            padding: 0;
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+
+        .instructions li {
+            margin-bottom: 0.25rem;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #2563eb;
+        }
+
+        .btn-success {
+            background-color: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #059669;
+        }
+
+        .btn-secondary {
+            background-color: #e5e7eb;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background-color: #d1d5db;
+        }
+
+        .full-width {
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .canvas {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background-color: #f9fafb;
+            background-image: radial-gradient(circle, #d1d5db 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .connections-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .workflow-node {
+            position: absolute;
+            width: 120px;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+            z-index: 2;
+        }
+
+        .workflow-node:hover {
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .workflow-node.selected {
+            box-shadow: 0 0 0 4px #3b82f6;
+        }
+
+        .node-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .delete-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            font-size: 1.25rem;
+            line-height: 1;
+            padding: 0;
+        }
+
+        .delete-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .node-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .connect-btn {
+            width: 100%;
+            font-size: 0.75rem;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 0.25rem;
+            border-radius: 0.25rem;
+            cursor: pointer;
+        }
+
+        .connect-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .connecting-message {
+            position: absolute;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #eab308;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+
+        .properties-panel {
+            width: 320px;
+            background: white;
+            border-left: 1px solid #e5e7eb;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+
+        .panel-title {
+            font-size: 1.125rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .node-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem;
+            background-color: #f3f4f6;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .node-icon-large {
+            font-size: 2rem;
+        }
+
+        .node-info-label {
+            font-weight: 600;
+        }
+
+        .node-info-id {
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+
+        .config-form {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+            color: #374151;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .no-config {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+
+        .no-selection {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #9ca3af;
+            margin-top: 2rem;
+            text-align: center;
+        }
+
+        .icon-large {
+            font-size: 3rem;
+            opacity: 0.2;
+            margin-bottom: 0.5rem;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="workflow-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <h2 class="sidebar-title">
+                <span>+</span>
+                Workflow Nodes
+            </h2>
+            <div class="node-palette" id="nodePalette"></div>
+            <div class="instructions">
+                <h3>Instructions:</h3>
+                <ul>
+                    <li>• Drag nodes to canvas</li>
+                    <li>• Click node to configure</li>
+                    <li>• Click "Connect" to link nodes</li>
+                    <li>• Build approval flow</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="header">
+                <h1>Auto Approval Workflow Designer (Angular Preview)</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="app.saveWorkflow()">
+                        <span>💾</span>
+                        Save
+                    </button>
+                    <button class="btn btn-success" onclick="app.testWorkflow()">
+                        <span>▶</span>
+                        Test
+                    </button>
+                </div>
+            </div>
+
+            <div class="canvas" id="canvas">
+                <svg class="connections-svg" id="connectionsSvg">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                            <polygon points="0 0, 10 3, 0 6" fill="#6366f1" />
+                        </marker>
+                    </defs>
+                </svg>
+                <div id="connectingMessage" class="connecting-message hidden">
+                    Click on target node to connect
+                </div>
+            </div>
+        </div>
+
+        <!-- Properties Panel -->
+        <div class="properties-panel">
+            <h2 class="panel-title">
+                <span>⚙</span>
+                Node Properties
+            </h2>
+            <div id="propertiesContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const app = {
+            nodes: [],
+            connections: [],
+            selectedNode: null,
+            connecting: null,
+            draggedNodeType: null,
+
+            nodeTypes: [
+                { id: 'start', label: 'Start', color: 'node-green', icon: '▶' },
+                { id: 'condition', label: 'Condition', color: 'node-yellow', icon: '◆' },
+                { id: 'approver', label: 'Approver', color: 'node-blue', icon: '👤' },
+                { id: 'action', label: 'Action', color: 'node-purple', icon: '⚡' },
+                { id: 'email', label: 'Send Email', color: 'node-pink', icon: '✉' },
+                { id: 'end', label: 'End', color: 'node-red', icon: '■' }
+            ],
+
+            init() {
+                this.renderNodePalette();
+                this.setupCanvasEvents();
+            },
+
+            renderNodePalette() {
+                const palette = document.getElementById('nodePalette');
+                palette.innerHTML = this.nodeTypes.map(type => `
+                    <div class="palette-node ${type.color}" draggable="true" data-type="${type.id}">
+                        <span class="node-icon">${type.icon}</span>
+                        <span>${type.label}</span>
+                    </div>
+                `).join('');
+
+                palette.querySelectorAll('.palette-node').forEach(el => {
+                    el.addEventListener('dragstart', (e) => {
+                        this.draggedNodeType = this.nodeTypes.find(t => t.id === e.target.dataset.type);
+                    });
+                });
+            },
+
+            setupCanvasEvents() {
+                const canvas = document.getElementById('canvas');
+                
+                canvas.addEventListener('dragover', (e) => e.preventDefault());
+                
+                canvas.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    if (!this.draggedNodeType) return;
+
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left - 60;
+                    const y = e.clientY - rect.top - 30;
+
+                    const newNode = {
+                        id: `node-${Date.now()}`,
+                        type: this.draggedNodeType.id,
+                        label: this.draggedNodeType.label,
+                        color: this.draggedNodeType.color,
+                        icon: this.draggedNodeType.icon,
+                        x, y,
+                        config: {}
+                    };
+
+                    this.nodes.push(newNode);
+                    this.draggedNodeType = null;
+                    this.render();
+                });
+            },
+
+            selectNode(node) {
+                if (this.connecting) {
+                    if (this.connecting.id !== node.id) {
+                        this.connections.push({ from: this.connecting.id, to: node.id });
+                        this.render();
+                    }
+                    this.connecting = null;
+                    document.getElementById('connectingMessage').classList.add('hidden');
+                } else {
+                    this.selectedNode = node;
+                    this.renderProperties();
+                }
+                this.render();
+            },
+
+            startConnection(nodeId) {
+                this.connecting = this.nodes.find(n => n.id === nodeId);
+                document.getElementById('connectingMessage').classList.remove('hidden');
+            },
+
+            deleteNode(nodeId) {
+                this.nodes = this.nodes.filter(n => n.id !== nodeId);
+                this.connections = this.connections.filter(c => c.from !== nodeId && c.to !== nodeId);
+                if (this.selectedNode?.id === nodeId) {
+                    this.selectedNode = null;
+                }
+                this.render();
+                this.renderProperties();
+            },
+
+            updateConfig(field, value) {
+                if (this.selectedNode) {
+                    this.selectedNode.config[field] = value;
+                    const node = this.nodes.find(n => n.id === this.selectedNode.id);
+                    if (node) node.config[field] = value;
+                }
+            },
+
+            render() {
+                const canvas = document.getElementById('canvas');
+                const existing = canvas.querySelectorAll('.workflow-node');
+                existing.forEach(el => el.remove());
+
+                this.nodes.forEach(node => {
+                    const nodeEl = document.createElement('div');
+                    nodeEl.className = `workflow-node ${node.color} ${this.selectedNode?.id === node.id ? 'selected' : ''}`;
+                    nodeEl.style.left = node.x + 'px';
+                    nodeEl.style.top = node.y + 'px';
+                    nodeEl.innerHTML = `
+                        <div class="node-header">
+                            <span class="node-icon">${node.icon}</span>
+                            <button class="delete-btn" onclick="app.deleteNode('${node.id}'); event.stopPropagation();">×</button>
+                        </div>
+                        <div class="node-title">${node.label}</div>
+                        <button class="connect-btn" onclick="app.startConnection('${node.id}'); event.stopPropagation();">
+                            ${this.connecting?.id === node.id ? 'Click target' : 'Connect'}
+                        </button>
+                    `;
+                    nodeEl.onclick = () => this.selectNode(node);
+                    canvas.appendChild(nodeEl);
+                });
+
+                this.renderConnections();
+            },
+
+            renderConnections() {
+                const svg = document.getElementById('connectionsSvg');
+                svg.innerHTML = `
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                            <polygon points="0 0, 10 3, 0 6" fill="#6366f1" />
+                        </marker>
+                    </defs>
+                `;
+
+                this.connections.forEach(conn => {
+                    const from = this.nodes.find(n => n.id === conn.from);
+                    const to = this.nodes.find(n => n.id === conn.to);
+                    if (!from || !to) return;
+
+                    const x1 = from.x + 60, y1 = from.y + 30;
+                    const x2 = to.x + 60, y2 = to.y + 30;
+                    const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', `M ${x1} ${y1} Q ${midX} ${y1} ${midX} ${midY} T ${x2} ${y2}`);
+                    path.setAttribute('stroke', '#6366f1');
+                    path.setAttribute('stroke-width', '2');
+                    path.setAttribute('fill', 'none');
+                    path.setAttribute('marker-end', 'url(#arrowhead)');
+                    svg.appendChild(path);
+                });
+            },
+
+            renderProperties() {
+                const content = document.getElementById('propertiesContent');
+                
+                if (!this.selectedNode) {
+                    content.innerHTML = `
+                        <div class="no-selection">
+                            <span class="icon-large">⚙</span>
+                            <p>Select a node to configure its properties</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let configHtml = '';
+                const cfg = this.selectedNode.config;
+
+                if (this.selectedNode.type === 'condition') {
+                    configHtml = `
+                        <div class="form-group">
+                            <label>Field</label>
+                            <select onchange="app.updateConfig('field', this.value)" value="${cfg.field || ''}">
+                                <option value="">Select Field</option>
+                                <option value="amount" ${cfg.field === 'amount' ? 'selected' : ''}>Amount</option>
+                                <option value="status" ${cfg.field === 'status' ? 'selected' : ''}>Status</option>
+                                <option value="priority" ${cfg.field === 'priority' ? 'selected' : ''}>Priority</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Operator</label>
+                            <select onchange="app.updateConfig('operator', this.value)">
+                                <option value="">Select Operator</option>
+                                <option value="equals" ${cfg.operator === 'equals' ? 'selected' : ''}>Equals</option>
+                                <option value="greater" ${cfg.operator === 'greater' ? 'selected' : ''}>Greater Than</option>
+                                <option value="less" ${cfg.operator === 'less' ? 'selected' : ''}>Less Than</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Value</label>
+                            <input type="text" value="${cfg.value || ''}" oninput="app.updateConfig('value', this.value)" placeholder="Enter value">
+                        </div>
+                    `;
+                } else if (this.selectedNode.type === 'approver') {
+                    configHtml = `
+                        <div class="form-group">
+                            <label>Approver Level</label>
+                            <select onchange="app.updateConfig('level', this.value)">
+                                <option value="">Select Level</option>
+                                <option value="1" ${cfg.level === '1' ? 'selected' : ''}>Level 1 - Manager</option>
+                                <option value="2" ${cfg.level === '2' ? 'selected' : ''}>Level 2 - Director</option>
+                                <option value="3" ${cfg.level === '3' ? 'selected' : ''}>Level 3 - VP</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Approver Email</label>
+                            <input type="email" value="${cfg.email || ''}" oninput="app.updateConfig('email', this.value)" placeholder="approver@company.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Timeout (hours)</label>
+                            <input type="number" value="${cfg.timeout || ''}" oninput="app.updateConfig('timeout', this.value)" placeholder="24">
+                        </div>
+                    `;
+                } else if (this.selectedNode.type === 'email') {
+                    configHtml = `
+                        <div class="form-group">
+                            <label>To Email</label>
+                            <input type="email" value="${cfg.to || ''}" oninput="app.updateConfig('to', this.value)" placeholder="recipient@company.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Subject</label>
+                            <input type="text" value="${cfg.subject || ''}" oninput="app.updateConfig('subject', this.value)" placeholder="Email subject">
+                        </div>
+                        <div class="form-group">
+                            <label>Template</label>
+                            <select onchange="app.updateConfig('template', this.value)">
+                                <option value="">Select Template</option>
+                                <option value="approved" ${cfg.template === 'approved' ? 'selected' : ''}>Approval Notification</option>
+                                <option value="rejected" ${cfg.template === 'rejected' ? 'selected' : ''}>Rejection Notification</option>
+                            </select>
+                        </div>
+                    `;
+                } else {
+                    configHtml = '<div class="no-config">No configuration needed for this node type.</div>';
+                }
+
+                content.innerHTML = `
+                    <div class="node-info">
+                        <span class="node-icon-large">${this.selectedNode.icon}</span>
+                        <div>
+                            <div class="node-info-label">${this.selectedNode.label}</div>
+                            <div class="node-info-id">${this.selectedNode.id}</div>
+                        </div>
+                    </div>
+                    <div class="config-form">
+                        ${configHtml}
+                    </div>
+                    <button class="btn btn-secondary full-width" onclick="app.selectedNode = null; app.renderProperties(); app.render();">Close</button>
+                `;
+            },
+
+            saveWorkflow() {
+                const workflow = { nodes: this.nodes, connections: this.connections };
+                console.log('Workflow saved:', workflow);
+                alert('Workflow saved! Check console for details.');
+            },
+
+            testWorkflow() {
+                alert('Testing workflow with ' + this.nodes.length + ' nodes');
+            }
+        };
+
+        // Initialize app
+        app.init();
+    </script>
+</body>
+</html>
