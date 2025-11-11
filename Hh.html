@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Angular Workflow Builder Preview</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+
+        .workflow-container {
+            display: flex;
+            height: 100vh;
+            background: #f9fafb;
+        }
+
+        /* Toolbox Styles */
+        .toolbox {
+            width: 260px;
+            background: white;
+            border-right: 1px solid #e5e7eb;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .toolbox h2 {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 16px;
+        }
+
+        .node-types {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .node-type {
+            padding: 12px;
+            border-radius: 8px;
+            cursor: move;
+            color: white;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: opacity 0.2s;
+            user-select: none;
+        }
+
+        .node-type:hover {
+            opacity: 0.8;
+        }
+
+        .node-type .icon {
+            font-size: 18px;
+        }
+
+        .bg-green { background: #10b981; }
+        .bg-blue { background: #3b82f6; }
+        .bg-yellow { background: #f59e0b; }
+        .bg-purple { background: #8b5cf6; }
+        .bg-orange { background: #f97316; }
+
+        .help-box {
+            margin-top: 24px;
+            padding: 12px;
+            background: #dbeafe;
+            border-radius: 8px;
+        }
+
+        .help-box h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e3a8a;
+            margin-bottom: 8px;
+        }
+
+        .help-box ul {
+            list-style: none;
+            font-size: 12px;
+            color: #1e40af;
+        }
+
+        .help-box li {
+            margin-bottom: 4px;
+        }
+
+        /* Canvas Styles */
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .canvas {
+            width: 100%;
+            height: 100%;
+            background: #f3f4f6;
+            background-image: radial-gradient(circle, #d1d5db 1px, transparent 1px);
+            background-size: 20px 20px;
+            position: relative;
+        }
+
+        .connections-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .workflow-node {
+            position: absolute;
+            width: 150px;
+            padding: 12px;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+            z-index: 2;
+        }
+
+        .workflow-node:hover {
+            transform: scale(1.05);
+        }
+
+        .workflow-node.selected {
+            box-shadow: 0 0 0 4px #60a5fa;
+        }
+
+        .node-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .node-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .node-icon {
+            font-size: 16px;
+        }
+
+        .node-label {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .delete-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            transition: background 0.2s;
+        }
+
+        .delete-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .node-content {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+            min-height: 20px;
+        }
+
+        .node-info {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .node-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .connect-btn, .cancel-btn, .link-btn {
+            flex: 1;
+            padding: 6px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .connect-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .connect-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .cancel-btn {
+            background: #ef4444;
+            color: white;
+        }
+
+        .cancel-btn:hover {
+            background: #dc2626;
+        }
+
+        .link-btn {
+            background: #10b981;
+            color: white;
+        }
+
+        .link-btn:hover {
+            background: #059669;
+        }
+
+        /* Properties Panel */
+        .properties-panel {
+            width: 320px;
+            background: white;
+            border-left: 1px solid #e5e7eb;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .properties-panel h2 {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 16px;
+        }
+
+        .properties-content {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .property-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .property-group label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-control {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            width: 100%;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .node-type-badge {
+            padding: 8px 12px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+        }
+
+        .approver-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .remove-btn {
+            width: 32px;
+            height: 38px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 20px;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .remove-btn:hover {
+            background: #dc2626;
+        }
+
+        .add-approver-btn {
+            width: 100%;
+            padding: 8px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .add-approver-btn:hover {
+            background: #2563eb;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .no-selection {
+            text-align: center;
+            color: #9ca3af;
+            margin-top: 40px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="workflow-container">
+        <!-- Toolbox -->
+        <div class="toolbox">
+            <h2>Workflow Nodes</h2>
+            <div class="node-types">
+                <div class="node-type bg-green" draggable="true" data-type="start">
+                    <span class="icon">▶</span>
+                    <span>Start</span>
+                </div>
+                <div class="node-type bg-blue" draggable="true" data-type="field">
+                    <span class="icon">+</span>
+                    <span>Add Field</span>
+                </div>
+                <div class="node-type bg-yellow" draggable="true" data-type="decision">
+                    <span class="icon">◇</span>
+                    <span>Decision</span>
+                </div>
+                <div class="node-type bg-purple" draggable="true" data-type="approver">
+                    <span class="icon">✓</span>
+                    <span>Approver</span>
+                </div>
+                <div class="node-type bg-orange" draggable="true" data-type="email">
+                    <span class="icon">✉</span>
+                    <span>Send Email</span>
+                </div>
+            </div>
+            <div class="help-box">
+                <h3>How to use:</h3>
+                <ul>
+                    <li>• Drag nodes to canvas</li>
+                    <li>• Click node to edit</li>
+                    <li>• Click "Connect" to link nodes</li>
+                    <li>• Build your workflow!</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Canvas -->
+        <div class="canvas-container">
+            <div class="canvas" id="canvas">
+                <svg class="connections-svg" id="connectionsSvg">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                            <polygon points="0 0, 10 3, 0 6" fill="#94a3b8" />
+                        </marker>
+                    </defs>
+                </svg>
+                <div id="nodesContainer"></div>
+            </div>
+        </div>
+
+        <!-- Properties Panel -->
+        <div class="properties-panel">
+            <h2>Properties</h2>
+            <div id="propertiesContent"></div>
+        </div>
+    </div>
+
+    <script>
+        let nodes = [];
+        let connections = [];
+        let selectedNode = null;
+        let connecting = null;
+        let draggedType = null;
+        let nextId = 1;
+
+        const nodeTypes = {
+            start: { label: 'Start', icon: '▶', color: 'bg-green' },
+            field: { label: 'Add Field', icon: '+', color: 'bg-blue' },
+            decision: { label: 'Decision', icon: '◇', color: 'bg-yellow' },
+            approver: { label: 'Approver', icon: '✓', color: 'bg-purple' },
+            email: { label: 'Send Email', icon: '✉', color: 'bg-orange' }
+        };
+
+        const fieldOptions = ['Event Status', 'Analysis Value', 'Amount', 'Priority', 'Category', 'Department'];
+        const operators = ['equals', 'not equals', 'greater than', 'less than', 'contains'];
+
+        // Drag and drop handlers
+        document.querySelectorAll('.node-type').forEach(el => {
+            el.addEventListener('dragstart', (e) => {
+                draggedType = e.target.closest('.node-type').dataset.type;
+            });
+        });
+
+        const canvas = document.getElementById('canvas');
+        canvas.addEventListener('dragover', (e) => e.preventDefault());
+        canvas.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (!draggedType) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const newNode = {
+                id: `node-${nextId++}`,
+                type: draggedType,
+                label: nodeTypes[draggedType].label,
+                x, y,
+                data: getDefaultData(draggedType)
+            };
+
+            nodes.push(newNode);
+            draggedType = null;
+            render();
+        });
+
+        function getDefaultData(type) {
+            switch (type) {
+                case 'field': return { fieldName: '', fieldType: 'text' };
+                case 'decision': return { field: '', operator: 'equals', value: '' };
+                case 'approver': return { level: 1, approvers: [''], canReject: true };
+                case 'email': return { to: '', subject: '', body: '' };
+                default: return {};
+            }
+        }
+
+        function render() {
+            renderNodes();
+            renderConnections();
+            renderProperties();
+        }
+
+        function renderNodes() {
+            const container = document.getElementById('nodesContainer');
+            container.innerHTML = '';
+
+            nodes.forEach(node => {
+                const el = document.createElement('div');
+                el.className = `workflow-node ${nodeTypes[node.type].color} ${selectedNode?.id === node.id ? 'selected' : ''}`;
+                el.style.left = node.x + 'px';
+                el.style.top = node.y + 'px';
+
+                el.innerHTML = `
+                    <div class="node-header">
+                        <div class="node-title">
+                            <span class="node-icon">${nodeTypes[node.type].icon}</span>
+                            <span class="node-label">${node.label}</span>
+                        </div>
+                        <button class="delete-btn" onclick="deleteNode('${node.id}')">×</button>
+                    </div>
+                    <div class="node-content">
+                        <div class="node-info">${getNodeInfo(node)}</div>
+                    </div>
+                    <div class="node-actions">
+                        ${!connecting ? `<button class="connect-btn" onclick="startConnection('${node.id}')">Connect</button>` : ''}
+                        ${connecting === node.id ? `<button class="cancel-btn" onclick="cancelConnection()">Cancel</button>` : ''}
+                        ${connecting && connecting !== node.id ? `<button class="link-btn" onclick="completeConnection('${node.id}')">Link Here</button>` : ''}
+                    </div>
+                `;
+
+                el.addEventListener('click', (e) => {
+                    if (!e.target.closest('button')) {
+                        selectNode(node);
+                    }
+                });
+
+                container.appendChild(el);
+            });
+        }
+
+        function renderConnections() {
+            const svg = document.getElementById('connectionsSvg');
+            const lines = svg.querySelectorAll('line');
+            lines.forEach(line => line.remove());
+
+            connections.forEach(conn => {
+                const fromNode = nodes.find(n => n.id === conn.from);
+                const toNode = nodes.find(n => n.id === conn.to);
+                if (!fromNode || !toNode) return;
+
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', fromNode.x + 75);
+                line.setAttribute('y1', fromNode.y + 40);
+                line.setAttribute('x2', toNode.x + 75);
+                line.setAttribute('y2', toNode.y + 40);
+                line.setAttribute('stroke', '#94a3b8');
+                line.setAttribute('stroke-width', '2');
+                line.setAttribute('marker-end', 'url(#arrowhead)');
+                svg.appendChild(line);
+            });
+        }
+
+        function renderProperties() {
+            const container = document.getElementById('propertiesContent');
+            
+            if (!selectedNode) {
+                container.innerHTML = '<div class="no-selection">Select a node to edit its properties</div>';
+                return;
+            }
+
+            let html = `
+                <div class="properties-content">
+                    <div class="property-group">
+                        <label>Node Type</label>
+                        <div class="node-type-badge ${nodeTypes[selectedNode.type].color}">${selectedNode.label}</div>
+                    </div>
+            `;
+
+            if (selectedNode.type === 'field') {
+                html += `
+                    <div class="property-group">
+                        <label>Field Name</label>
+                        <select class="form-control" onchange="updateNodeData('fieldName', this.value)">
+                            <option value="">Select Field</option>
+                            ${fieldOptions.map(f => `<option value="${f}" ${selectedNode.data.fieldName === f ? 'selected' : ''}>${f}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="property-group">
+                        <label>Field Type</label>
+                        <select class="form-control" onchange="updateNodeData('fieldType', this.value)">
+                            <option value="text" ${selectedNode.data.fieldType === 'text' ? 'selected' : ''}>Text</option>
+                            <option value="number" ${selectedNode.data.fieldType === 'number' ? 'selected' : ''}>Number</option>
+                            <option value="date" ${selectedNode.data.fieldType === 'date' ? 'selected' : ''}>Date</option>
+                            <option value="dropdown" ${selectedNode.data.fieldType === 'dropdown' ? 'selected' : ''}>Dropdown</option>
+                        </select>
+                    </div>
+                `;
+            } else if (selectedNode.type === 'decision') {
+                html += `
+                    <div class="property-group">
+                        <label>Field</label>
+                        <select class="form-control" onchange="updateNodeData('field', this.value)">
+                            <option value="">Select Field</option>
+                            ${fieldOptions.map(f => `<option value="${f}" ${selectedNode.data.field === f ? 'selected' : ''}>${f}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="property-group">
+                        <label>Operator</label>
+                        <select class="form-control" onchange="updateNodeData('operator', this.value)">
+                            ${operators.map(o => `<option value="${o}" ${selectedNode.data.operator === o ? 'selected' : ''}>${o}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="property-group">
+                        <label>Value</label>
+                        <input type="text" class="form-control" value="${selectedNode.data.value}" onchange="updateNodeData('value', this.value)" placeholder="Enter value">
+                    </div>
+                `;
+            } else if (selectedNode.type === 'approver') {
+                html += `
+                    <div class="property-group">
+                        <label>Approval Level</label>
+                        <input type="number" class="form-control" value="${selectedNode.data.level}" onchange="updateNodeData('level', parseInt(this.value))" min="1">
+                    </div>
+                    <div class="property-group">
+                        <label>Approvers</label>
+                        ${selectedNode.data.approvers.map((a, i) => `
+                            <div class="approver-row">
+                                <input type="text" class="form-control" value="${a}" onchange="updateApprover(${i}, this.value)" placeholder="Email or Name">
+                                ${selectedNode.data.approvers.length > 1 ? `<button class="remove-btn" onclick="removeApprover(${i})">×</button>` : ''}
+                            </div>
+                        `).join('')}
+                        <button class="add-approver-btn" onclick="addApprover()">+ Add Approver</button>
+                    </div>
+                    <div class="property-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" ${selectedNode.data.canReject ? 'checked' : ''} onchange="updateNodeData('canReject', this.checked)">
+                            Can Reject
+                        </label>
+                    </div>
+                `;
+            } else if (selectedNode.type === 'email') {
+                html += `
+                    <div class="property-group">
+                        <label>To</label>
+                        <input type="text" class="form-control" value="${selectedNode.data.to}" onchange="updateNodeData('to', this.value)" placeholder="recipient@example.com">
+                    </div>
+                    <div class="property-group">
+                        <label>Subject</label>
+                        <input type="text" class="form-control" value="${selectedNode.data.subject}" onchange="updateNodeData('subject', this.value)" placeholder="Email subject">
+                    </div>
+                    <div class="property-group">
+                        <label>Body</label>
+                        <textarea class="form-control" rows="4" onchange="updateNodeData('body', this.value)" placeholder="Email body">${selectedNode.data.body}</textarea>
+                    </div>
+                `;
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function getNodeInfo(node) {
+            switch (node.type) {
+                case 'field': return node.data.fieldName ? `Field: ${node.data.fieldName}` : '';
+                case 'decision': return node.data.field ? `If ${node.data.field}` : '';
+                case 'approver': return `Level ${node.data.level}`;
+                case 'email': return 'Email Action';
+                case 'start': return 'Workflow Start';
+                default: return '';
+            }
+        }
+
+        function selectNode(node) {
+            selectedNode = node;
+            render();
+        }
+
+        function deleteNode(nodeId) {
+            nodes = nodes.filter(n => n.id !== nodeId);
+            connections = connections.filter(c => c.from !== nodeId && c.to !== nodeId);
+            if (selectedNode?.id === nodeId) selectedNode = null;
+            render();
+        }
+
+        function startConnection(nodeId) {
+            connecting = nodeId;
+            render();
+        }
+
+        function cancelConnection() {
+            connecting = null;
+            render();
+        }
+
+        function completeConnection(toNodeId) {
+            if (connecting && connecting !== toNodeId) {
+                connections.push({
+                    id: `conn-${connections.length}`,
+                    from: connecting,
+                    to: toNodeId,
+                    type: 'default'
+                });
+            }
+            connecting = null;
+            render();
+        }
+
+        function updateNodeData(key, value) {
+            if (selectedNode) {
+                selectedNode.data[key] = value;
+                render();
+            }
+        }
+
+        function updateApprover(index, value) {
+            if (selectedNode && selectedNode.type === 'approver') {
+                selectedNode.data.approvers[index] = value;
+            }
+        }
+
+        function addApprover() {
+            if (selectedNode && selectedNode.type === 'approver') {
+                selectedNode.data.approvers.push('');
+                render();
+            }
+        }
+
+        function removeApprover(index) {
+            if (selectedNode && selectedNode.type === 'approver' && selectedNode.data.approvers.length > 1) {
+                selectedNode.data.approvers.splice(index, 1);
+                render();
+            }
+        }
+
+        // Initial render
+        render();
+    </script>
+</body>
+</html>
